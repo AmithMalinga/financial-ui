@@ -1,4 +1,6 @@
 import React, { useState } from "react";
+// Icon library for nicer icons
+import { HiChartBar, HiHeart, HiPieChart, HiClock, HiExclamationCircle, HiClipboardList } from 'react-icons/hi';
 
 const PRIMARY_COLOR = '#2563EB';
 const ACCENT_COLOR = '#9333EA';
@@ -228,7 +230,11 @@ const PieChart = ({items = [], size = 200, innerRadius = 50}) => {
 // Timeline visualization — responsive, shows ages as markers on a horizontal axis
   const TimelineVisual = ({timelines = [], currentAge = 25}) => {
     if (!timelines || timelines.length === 0) return null;
-    const ages = timelines.map(t => t.age_at_fi);
+    // Defensive: coerce all ages to numbers, fallback to 0 if not valid
+    const ages = timelines.map(t => {
+      const n = Number(t.age_at_fi);
+      return !isNaN(n) && isFinite(n) ? n : 0;
+    });
     const minAge = Math.min(currentAge, ...ages) - 1;
     const maxAge = Math.max(...ages) + 1;
     const WIDTH = 1100; const HEIGHT = 110;
@@ -249,12 +255,16 @@ const PieChart = ({items = [], size = 200, innerRadius = 50}) => {
             )
           })}
           {timelines.map((t, idx) => {
-            const x = scale(t.age_at_fi);
+            // Defensive: coerce age_at_fi to number for calculations and display
+            const ageAtFiNum = Number(t.age_at_fi);
+            const x = scale(!isNaN(ageAtFiNum) && isFinite(ageAtFiNum) ? ageAtFiNum : 0);
             // Balanced (ROI 12-16) is now green, others unchanged
             let color = '#06b6d4'; // Conservative
             let isBalanced = false;
             if (t.roi >= 16) color = '#ef4444'; // Aggressive
             else if (t.roi >= 12) { color = '#10B981'; isBalanced = true; } // Balanced = green
+            // Defensive: display age as number with 1 decimal, fallback to 'N/A'
+            const ageAtFiLabel = !isNaN(ageAtFiNum) && isFinite(ageAtFiNum) ? ageAtFiNum.toFixed(1) : 'N/A';
             return (
               <g key={idx}>
                 {isBalanced ? (
@@ -262,7 +272,7 @@ const PieChart = ({items = [], size = 200, innerRadius = 50}) => {
                 ) : null}
                 <circle cx={x} cy={HEIGHT/2} r={7} fill={color} />
                 <text x={x} y={HEIGHT/2-14} fontSize={11} fill="#0f172a" textAnchor="middle">{t.roi}%</text>
-                <text x={x} y={HEIGHT/2+34} fontSize={11} fill="#374151" textAnchor="middle">Age {t.age_at_fi.toFixed(1)}</text>
+                <text x={x} y={HEIGHT/2+34} fontSize={11} fill="#374151" textAnchor="middle">Age {ageAtFiLabel}</text>
               </g>
             )
           })}
@@ -291,6 +301,15 @@ const IconAllocation = ({size=18, color='#10B981'}) => (
   <svg width={size} height={size} viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" style={{marginRight:8}}>
     <circle cx="12" cy="12" r="10" fill="#F3F4F6" />
     <path d="M12 2a10 10 0 0 1 6.32 18.32L12 12V2z" fill={color} />
+  </svg>
+);
+
+// New allocation/chart icon (pie + bar) for Monthly Allocation Plan
+const IconAllocationChart = ({size=18, color='#6366f1'}) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" style={{marginRight:8}}>
+    <circle cx="10" cy="10" r="6" fill="#F3F4F6" />
+    <path d="M10 4a6 6 0 0 1 6 6h-6V4z" fill="#6366f1" />
+    <rect x="16" y="6" width="6" height="12" rx="1" fill="#06b6d4" transform="translate(-2 0)" />
   </svg>
 );
 
@@ -580,7 +599,7 @@ const FinancialAdvisor = () => {
 
           {error && (
             <div style={styles.error}>
-              <IconWarning />
+              <HiExclamationCircle size={20} style={{marginRight:8}} color="#DC2626" />
               <p style={styles.errorText}>{error}</p>
             </div>
           )}
@@ -606,7 +625,7 @@ const FinancialAdvisor = () => {
                   <div style={{...styles.statLabel, color: '#065F46'}}>Monthly Savings</div>
                   <div style={{...styles.statValue, color: '#111827'}}>{formatCurrency(report.monthly_savings)}</div>
                   <div style={{...styles.statExtra, color: '#6B7280'}}>
-                    {((report.monthly_savings / report.monthly_income) * 100).toFixed(1)}% savings rate
+                    {(typeof report.monthly_income === 'number' && report.monthly_income > 0 && typeof report.monthly_savings === 'number') ? ((report.monthly_savings / report.monthly_income) * 100).toFixed(1) + '% savings rate' : 'N/A'}
                   </div>
                 </div>
 
@@ -618,9 +637,9 @@ const FinancialAdvisor = () => {
             </div>
 
             {/* Row 3: two-column grid - Health Score (left) and Allocation (right) with equal sizing */}
-            <div style={{display:'grid', gridTemplateColumns: '1fr 1fr', gap:16, marginBottom:16, alignItems:'start'}}>
+              <div style={{display:'grid', gridTemplateColumns: '1fr 1fr', gap:16, marginBottom:16, alignItems:'start'}}>
               <div style={{minWidth:280, display:'flex'}}>
-                <div style={{...styles.card, display:'flex', flexDirection:'column', flex:1}}>
+                <div style={{...styles.card, display:'flex', flexDirection:'column', flex:1, minHeight:340}}>
                   <h2 style={styles.sectionTitle}><IconHealth />Financial Health Score</h2>
                   <div style={{display:'flex',alignItems:'center',gap:80, flex:1}}>
                     <div style={{width:110}}>
@@ -645,22 +664,41 @@ const FinancialAdvisor = () => {
               </div>
 
               <div style={{minWidth:280, display:'flex'}}>
-                <div style={{...styles.card, display:'flex', flexDirection:'column', flex:1}}>
-                  <h2 style={styles.sectionTitle}><IconAllocation />Monthly Allocation Plan</h2>
-                  <div style={{display:'flex',alignItems:'center',gap:12, flex:1}}>
-                    <PieChart items={report.monthly_breakdown} size={160} innerRadius={46} />
-                    <div style={{flex:1}}>
-                      {report.monthly_breakdown.map((it, idx) => (
-                        <div key={idx} style={{display:'flex',justifyContent:'space-between',marginBottom:8,alignItems:'center'}}>
-                          <div style={{display:'flex',flexDirection:'column'}}>
-                            <div style={{fontWeight:700,color:'#374151'}}>{it.category}</div>
-                            <div style={{fontSize:12,color:'#6B7280'}}>{it.percent}% of savings</div>
-                          </div>
-                          <div style={{color:'#374151',fontWeight:600}}>{formatCurrency(it.amount)}</div>
+                <div style={{...styles.card, display:'flex', flexDirection:'column', flex:1, minHeight:340}}>
+                  <h2 style={styles.sectionTitle}><IconAllocationChart />Monthly Allocation Plan</h2>
+                  {(() => {
+                    // Pie chart colors (must match PieChart component)
+                    const pieColors = ['#6366f1', '#06b6d4', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6'];
+                    // Add consumption (expenses) as a portion in the pie chart
+                    const breakdown = Array.isArray(report.monthly_breakdown) ? [...report.monthly_breakdown] : [];
+                    const expenses = typeof report.monthly_expenses === 'number' ? report.monthly_expenses : Number(report.monthly_expenses);
+                    if (!isNaN(expenses) && expenses > 0) {
+                      breakdown.unshift({
+                        category: 'Consumption',
+                        amount: expenses,
+                        percent: report.monthly_income && expenses ? ((expenses / report.monthly_income) * 100).toFixed(1) : null
+                      });
+                    }
+                    return (
+                      <div style={{display:'flex',alignItems:'center',gap:24, flex:1}}>
+                        <PieChart items={breakdown} size={160} innerRadius={46} />
+                        <div style={{flex:1}}>
+                          {breakdown.map((it, idx) => (
+                            <div key={idx} style={{display:'grid', gridTemplateColumns: '1fr 120px', alignItems:'center', marginBottom:8}}>
+                              <div style={{display:'flex',flexDirection:'column'}}>
+                                <div style={{display:'flex',alignItems:'center',gap:8}}>
+                                  <span style={{display:'inline-block',width:16,height:16,borderRadius:4,background: pieColors[idx % pieColors.length],border:'1px solid #e5e7eb'}}></span>
+                                  <span style={{fontWeight:700,color:'#374151'}}>{it.category}</span>
+                                </div>
+                                <div style={{fontSize:12,color:'#6B7280'}}>{(it.percent !== null && it.percent !== undefined) ? `${it.percent}% of income` : 'N/A'}</div>
+                              </div>
+                              <div style={{color:'#374151',fontWeight:600,textAlign:'right'}}>{(it.amount !== null && it.amount !== undefined && !isNaN(Number(it.amount))) ? formatCurrency(Number(it.amount)) : 'N/A'}</div>
+                            </div>
+                          ))}
                         </div>
-                      ))}
-                    </div>
-                  </div>
+                      </div>
+                    );
+                  })()}
                 </div>
               </div>
             </div>
@@ -692,7 +730,6 @@ const FinancialAdvisor = () => {
                     {(report.fi_timelines || []).map((timeline, idx) => {
                       let strategy = "Conservative";
                       let badgeStyle = {background: '#DBEAFE', color: '#1E40AF', borderRadius: 8, fontWeight: 600, fontSize: 14, padding: '4px 12px', display: 'inline-block'};
-                      
                       if (timeline.roi >= 12 && timeline.roi < 16) {
                         strategy = "Balanced";
                         badgeStyle = {background: '#D1FAE5', color: '#065F46', borderRadius: 8, fontWeight: 600, fontSize: 14, padding: '4px 12px', display: 'inline-block'}; // green for balanced
@@ -721,14 +758,25 @@ const FinancialAdvisor = () => {
                         transition: 'background 0.2s',
                         ...(isIdeal ? {background: '#FFFBEB', borderLeft: `4px solid ${PRIMARY_COLOR}`, boxShadow: 'inset 0 0 0 1px rgba(16,185,129,0.03)'} : {})
                       };
+                      // Defensive: handle empty string/null, fallback to 'N/A'. Only show positive values.
+                      let yearsToFi = 'N/A';
+                      if (timeline.years_to_fi !== null && timeline.years_to_fi !== undefined && timeline.years_to_fi !== '') {
+                        const n = Number(timeline.years_to_fi);
+                        yearsToFi = (!isNaN(n) && isFinite(n) && n > 0) ? n.toFixed(1) : 'N/A';
+                      }
+                      let ageAtFi = 'N/A';
+                      if (timeline.age_at_fi !== null && timeline.age_at_fi !== undefined && timeline.age_at_fi !== '') {
+                        const n = Number(timeline.age_at_fi);
+                        ageAtFi = (!isNaN(n) && isFinite(n) && n > 0) ? n.toFixed(1) : 'N/A';
+                      }
 
                       return (
                         <tr key={idx} style={rowStyle}>
                           <td style={styles.td}>
                             <span style={{fontWeight: '600', color: '#111827'}}>{timeline.roi}%</span>
                           </td>
-                          <td style={styles.td}>{timeline.years_to_fi.toFixed(1)} years</td>
-                          <td style={styles.td}>{timeline.age_at_fi.toFixed(1)} years</td>
+                          <td style={styles.td}>{yearsToFi} years</td>
+                          <td style={styles.td}>{ageAtFi} years</td>
                           <td style={styles.td}>
                             <div style={{display:'flex',alignItems:'center',gap:8}}>
                               <span style={badgeStyle}>
@@ -755,52 +803,131 @@ const FinancialAdvisor = () => {
             </div>
 
             <div style={styles.card}>
-              <h2 style={styles.sectionTitle}>
-                {/* New icon for recommendations: lightbulb */}
-                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" style={{marginRight:8}} xmlns="http://www.w3.org/2000/svg">
-                  <path d="M12 2a7 7 0 0 1 7 7c0 2.5-1.5 4.5-3.5 6v2.5a1.5 1.5 0 0 1-3 0V15C6.5 13.5 5 11.5 5 9a7 7 0 0 1 7-7Z" fill="#FACC15" stroke="#F59E42" strokeWidth="1.2"/>
-                  <rect x="10" y="20" width="4" height="2" rx="1" fill="#F59E42" />
-                </svg>
-                Personalized Recommendations
-              </h2>
-              <div>
-                {report.recommendations.map((rec, idx) => (
-                  <div 
-                    key={idx} 
-                    style={{
-                      ...styles.recommendationCard,
-                      borderLeftColor: rec.priority === 'high' ? '#EF4444' : '#3B82F6',
-                      background: 'transparent'
-                    }}
-                  >
-                    <div style={{display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '8px'}}>
-                      <div style={{width:36,height:36,display:'flex',alignItems:'center',justifyContent:'center',borderRadius:8,background: rec.priority === 'high' ? '#FEF2F2' : '#EFF6FF', border: '1px solid ' + (rec.priority === 'high' ? '#FCA5A5' : '#93C5FD')}}>
-                        {/* Lightbulb icon for each recommendation */}
-                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                          <path d="M12 2a7 7 0 0 1 7 7c0 2.5-1.5 4.5-3.5 6v2.5a1.5 1.5 0 0 1-3 0V15C6.5 13.5 5 11.5 5 9a7 7 0 0 1 7-7Z" fill="#FACC15" stroke="#F59E42" strokeWidth="1.2"/>
-                          <rect x="10" y="20" width="4" height="2" rx="1" fill="#F59E42" />
-                        </svg>
-                      </div>
-                      <div style={{flex:1}}>
-                        <h3 style={{fontWeight: '600', color: '#111827', margin: 0}}>{rec.title}</h3>
-                        {/* Render rec.detail as bullet/pointwise list if it contains line breaks or numbered points */}
-                        {rec.detail && (rec.detail.includes('\n') || rec.detail.match(/\d+\./)) ? (
-                          <ul style={{marginTop:6, color:'#374151', fontSize:15, paddingLeft:18, lineHeight:1.6}}>
-                            {rec.detail.split(/\r?\n|(?=\d+\.)/).map((line, i) => {
-                              const t = line.trim();
-                              return t ? <li key={i} style={{marginBottom:4}}>{t}</li> : null;
-                            })}
-                          </ul>
-                        ) : (
-                          <div style={{marginTop:6,color:'#374151'}}>{rec.detail}</div>
-                        )}
-                      </div>
-                      <div style={{marginLeft:12,textAlign:'right'}}>
-                        <div style={{...styles.badge, background: rec.priority === 'high' ? '#FCA5A5' : '#93C5FD', color: rec.priority === 'high' ? '#7F1D1D' : '#1E3A8A'}}>{rec.priority.toUpperCase()}</div>
-                      </div>
-                    </div>
+              {/* Investment Categories Section with modern card design */}
+              <div style={{
+                background: 'linear-gradient(135deg, #F8FAFC 0%, #F1F5F9 100%)',
+                border: '1px solid #E2E8F0',
+                borderRadius: '12px',
+                padding: '24px',
+                marginBottom: '32px'
+              }}>
+                <div style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '12px',
+                  marginBottom: '20px'
+                }}>
+                  <div style={{
+                    width: '40px',
+                    height: '40px',
+                    background: 'linear-gradient(135deg, #3B82F6 0%, #8B5CF6 100%)',
+                    borderRadius: '10px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center'
+                  }}>
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                      <path d="M12 2L2 7l10 5 10-5-10-5z" fill="#fff" opacity="0.8"/>
+                      <path d="M2 17l10 5 10-5M2 12l10 5 10-5" stroke="#fff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                    </svg>
                   </div>
-                ))}
+                  <div>
+                    <h3 style={{
+                      fontWeight: '700',
+                      fontSize: '18px',
+                      color: '#0F172A',
+                      margin: 0
+                    }}>Suggested Investment Categories for your portfolio</h3>
+                    <p style={{
+                      fontSize: '14px',
+                      color: '#64748B',
+                      margin: '2px 0 0 0'
+                    }}>Diversify your portfolio across these recommended areas</p>
+                  </div>
+                </div>
+                <div style={{
+                  display: 'grid',
+                  gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))',
+                  gap: '12px'
+                }}>
+                  {['Renewable energy', 'Agriculture', 'Unit trusts', 'Personal development', 'Gold', 'Silver', 'Treasury bonds', 'Fixed deposits'].map((item, i) => (
+                    <div key={i} style={{
+                      background: '#FFFFFF',
+                      border: '1px solid #E2E8F0',
+                      borderRadius: '8px',
+                      padding: '12px 16px',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '10px',
+                      transition: 'all 0.2s',
+                      cursor: 'default'
+                    }} className="investment-category-chip">
+                      <div style={{
+                        width: '8px',
+                        height: '8px',
+                        borderRadius: '50%',
+                        background: 'linear-gradient(135deg, #3B82F6 0%, #8B5CF6 100%)'
+                      }}></div>
+                      <span style={{
+                        fontSize: '14px',
+                        fontWeight: '500',
+                        color: '#334155'
+                      }}>{item}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              <h3>Personalized Recommendations: </h3>
+
+              {/* Action Items Section - combined into a single professional card */}
+              <div style={{marginBottom: '16px'}}>
+                <h3 style={{
+                  fontSize: '16px',
+                  fontWeight: '700',
+                  color: '#0F172A',
+                  marginBottom: '12px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '8px'
+                }}>
+          
+                </h3>
+              </div>
+
+              <div style={{background: '#FFFFFF', border: '1px solid #E6E7EA', borderRadius: 12, padding: 20, marginBottom: 16}}>
+                <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12}}>
+                  <div>
+                    {/* <div style={{fontSize:14, color:'#6B7280'}}>Priority action list — consolidated</div> */}
+                    {/* <div style={{fontWeight:700, color:'#0F172A'}}>Recommended next steps to improve your financial plan</div> */}
+                  </div>
+                </div>
+
+                {(!report.recommendations || report.recommendations.length === 0) ? (
+                  <div style={{color:'#64748B'}}>No action items available.</div>
+                ) : (
+                  <ol style={{margin:0, paddingLeft: 18}}>
+                    {report.recommendations.map((rec, i) => (
+                      <li key={i} style={{marginBottom:12}}>
+                        <div style={{display:'flex', justifyContent:'space-between', gap:12}}>
+                          <div style={{flex:1}}>
+                            <div style={{fontWeight:700, color:'#0F172A', marginBottom:6}}>{rec.title}</div>
+                            {rec.detail ? (
+                              <div style={{color:'#475569', lineHeight:1.6}}>
+                                {rec.detail.split(/\r?\n/).map((line, j) => line.trim() ? <div key={j} style={{marginBottom:6}}>{line}</div> : null)}
+                              </div>
+                            ) : null}
+                          </div>
+                          <div style={{minWidth:120, textAlign:'right'}}>
+                            <div style={{display:'inline-block', padding:'6px 10px', borderRadius:8, fontWeight:700, fontSize:12, background: rec.priority === 'high' ? '#FEE2E2' : '#DBEAFE', color: rec.priority === 'high' ? '#991B1B' : '#1E40AF', border: `1px solid ${rec.priority === 'high' ? '#FCA5A5' : '#93C5FD'}`}}>
+                              {rec.priority ? rec.priority.toUpperCase() : 'PRIORITY'}
+                            </div>
+                          </div>
+                        </div>
+                      </li>
+                    ))}
+                  </ol>
+                )}
               </div>
             </div>
           </div>
